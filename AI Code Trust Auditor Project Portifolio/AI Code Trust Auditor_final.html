@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Code Trust Auditor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  margin:0;
+  font-family:Segoe UI, Arial;
+  background:#0f172a;
+  color:#e2e8f0;
+}
+
+/* Layout */
+.app { display:flex; height:100vh; }
+
+/* Sidebar */
+.sidebar {
+  width:260px;
+  background:#020617;
+  padding:20px;
+  border-right:1px solid #1e293b;
+}
+
+/* Logo */
+.logo {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:20px;
+}
+
+.logo-icon {
+  width:36px;
+  height:36px;
+  background:#2563eb;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
+}
+
+.logo-text {
+  font-size:16px;
+  font-weight:bold;
+}
+
+.tagline {
+  font-size:12px;
+  color:#94a3b8;
+  margin-top:-5px;
+}
+
+/* Nav */
+.nav button {
+  width:100%;
+  margin-top:10px;
+  padding:10px;
+  background:#1e293b;
+  border:none;
+  color:#fff;
+  cursor:pointer;
+  border-radius:6px;
+}
+
+.nav button.active {
+  background:#2563eb;
+}
+
+/* Main */
+.main { flex:1; display:flex; flex-direction:column; }
+
+.topbar {
+  padding:15px;
+  border-bottom:1px solid #1e293b;
+}
+
+textarea {
+  width:100%;
+  height:120px;
+  background:#020617;
+  color:#fff;
+  border:1px solid #334155;
+  border-radius:6px;
+  padding:10px;
+}
+
+.actions button {
+  margin-top:10px;
+  margin-right:10px;
+  padding:8px 12px;
+  background:#2563eb;
+  border:none;
+  color:white;
+  cursor:pointer;
+  border-radius:6px;
+}
+
+/* Content */
+.content {
+  padding:20px;
+  overflow:auto;
+}
+
+/* Cards */
+.card {
+  background:#1e293b;
+  padding:15px;
+  margin-bottom:15px;
+  border-radius:8px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.2);
+}
+
+/* Metrics */
+.metric { margin-bottom:5px; }
+
+/* Risk */
+.risk {
+  padding:8px;
+  margin-top:8px;
+  background:#020617;
+  border-left:4px solid red;
+  border-radius:4px;
+}
+
+.high { border-color:#f87171; }
+.medium { border-color:#facc15; }
+.low { border-color:#34d399; }
+
+/* Fix */
+.fix {
+  background:#022c22;
+  padding:10px;
+  margin-top:10px;
+  border-left:4px solid #22c55e;
+  border-radius:4px;
+}
+
+/* Hidden */
+.hidden { display:none; }
+
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<!-- Sidebar -->
+<div class="sidebar">
+
+<div class="logo">
+<div class="logo-icon">AI</div>
+<div>
+<div class="logo-text">AI Code Trust Auditor</div>
+<div class="tagline">Code Risk & Trust Evaluation</div>
+</div>
+</div>
+
+<div class="nav">
+<button onclick="showTab('overview')" id="btn-overview" class="active">Overview</button>
+<button onclick="showTab('insights')" id="btn-insights">Insights</button>
+<button onclick="showTab('risks')" id="btn-risks">Risks</button>
+<button onclick="showTab('highlight')" id="btn-highlight">Highlight</button>
+</div>
+
+</div>
+
+<!-- Main -->
+<div class="main">
+
+<div class="topbar">
+<textarea id="codeInput" placeholder="Paste AI-generated code..."></textarea>
+
+<div class="actions">
+<button onclick="analyze()">Analyze</button>
+<button onclick="resetApp()">Reset</button>
+<button onclick="toggleHighlight()">Toggle Highlight</button>
+</div>
+
+<div id="status">Status: Idle</div>
+</div>
+
+<div class="content">
+
+<!-- Overview -->
+<div id="overview" class="tab">
+<div class="card">
+<h3>Trust Score</h3>
+<div id="score">--</div>
+</div>
+
+<div class="card">
+<h3>Metrics</h3>
+<div id="metrics"></div>
+</div>
+</div>
+
+<!-- Insights -->
+<div id="insights" class="tab hidden">
+<div class="card"><h3>Insight</h3><div id="insight"></div></div>
+<div class="card"><h3>Top Issues</h3><div id="top"></div></div>
+<div class="card"><h3>Fix Guidance</h3><div id="fixes"></div></div>
+<div class="card"><h3>Execution Plan</h3><div id="plan"></div></div>
+</div>
+
+<!-- Risks -->
+<div id="risks" class="tab hidden">
+<div class="card"><h3>All Risks</h3><div id="risksList"></div></div>
+</div>
+
+<!-- Highlight -->
+<div id="highlight" class="tab hidden">
+<div class="card"><h3>Highlighted Code</h3><pre id="highlighted"></pre></div>
+</div>
+
+</div>
+</div>
+</div>
+
+<script>
+
+/* Tabs */
+function showTab(tab){
+ document.querySelectorAll(".tab").forEach(t=>t.classList.add("hidden"));
+ document.getElementById(tab).classList.remove("hidden");
+
+ document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+ document.getElementById("btn-"+tab).classList.add("active");
+}
+
+/* Rules */
+const rules = [
+{desc:"Unsafe eval", severity:"high", weight:20, pattern:"eval\\(", fix:"Avoid eval()", why:"Security risk"},
+{desc:"Code too long", severity:"medium", weight:10, custom:"length", fix:"Split functions", why:"Maintainability"},
+{desc:"Missing validation", severity:"high", weight:15, pattern:"if\\s*\\(", invert:true, fix:"Add validation", why:"Unpredictable input"},
+{desc:"Missing error handling", severity:"medium", weight:10, pattern:"try\\s*{", invert:true, fix:"Use try/catch", why:"Crash risk"}
+];
+
+let state = {results:[], score:0};
+let highlightVisible = false;
+
+/* Analyze */
+function analyze(){
+ try{
+ const code=document.getElementById("codeInput").value.trim();
+ if(!code){ setStatus("Empty input"); return;}
+
+ state.results=[];
+
+ rules.forEach(r=>{
+  let match=false;
+
+  if(r.custom==="length"){
+    match=code.split("\n").length>50;
+  } else {
+    const regex=new RegExp(r.pattern);
+    match=regex.test(code);
+    if(r.invert) match=!match;
+  }
+
+  if(match) state.results.push(r);
+ });
+
+ const total=state.results.reduce((s,r)=>s+r.weight,0);
+ state.score=Math.max(0,100-total);
+
+ render(code);
+ setStatus("Complete");
+
+ }catch{
+ setStatus("Error");
+ }
+}
+
+/* Render */
+function render(code){
+
+ document.getElementById("score").innerText=state.score;
+
+ const counts={high:0,medium:0,low:0};
+ state.results.forEach(r=>counts[r.severity]++);
+
+ document.getElementById("metrics").innerHTML=`
+ <div class="metric">Score: ${state.score}</div>
+ <div class="metric">Risks: ${state.results.length}</div>
+ <div class="metric">High: ${counts.high}</div>
+ <div class="metric">Medium: ${counts.medium}</div>
+ <div class="metric">Low: ${counts.low}</div>
+ <div class="metric">Lines: ${code.split("\n").length}</div>
+ `;
+
+ if(state.results.length){
+  const sorted=[...state.results].sort((a,b)=>b.weight-a.weight);
+  document.getElementById("insight").innerText =
+  `Primary risks: ${sorted.slice(0,2).map(r=>r.desc).join(" and ")}`;
+ } else {
+  document.getElementById("insight").innerText="No major issues detected.";
+ }
+
+ document.getElementById("top").innerHTML =
+ state.results.map((r,i)=>`${i+1}. ${r.desc}`).join("<br>");
+
+ document.getElementById("fixes").innerHTML =
+ state.results.map(r=>`
+ <div class="fix">
+ <b>${r.desc}</b><br>
+ Why: ${r.why}<br>
+ Fix: ${r.fix}
+ </div>`).join("");
+
+ document.getElementById("plan").innerHTML =
+ state.results.length ?
+ `1. Fix ${state.results[0].desc}<br>2. Improve structure<br>3. Re-run`
+ : "No action needed";
+
+ document.getElementById("risksList").innerHTML =
+ state.results.map(r=>`<div class="risk ${r.severity}">${r.desc}</div>`).join("");
+
+ if(highlightVisible){
+  document.getElementById("highlighted").innerText=code;
+ }
+}
+
+/* Highlight */
+function toggleHighlight(){
+ highlightVisible=!highlightVisible;
+ showTab("highlight");
+
+ if(highlightVisible){
+  const code=document.getElementById("codeInput").value;
+  document.getElementById("highlighted").innerText=code;
+ }
+}
+
+/* Reset */
+function resetApp(){
+ document.getElementById("codeInput").value="";
+ state={results:[],score:0};
+ render("");
+ setStatus("Idle");
+}
+
+function setStatus(s){
+ document.getElementById("status").innerText="Status: "+s;
+}
+
+</script>
+
+</body>
+</html>
